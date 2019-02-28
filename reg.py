@@ -6,12 +6,9 @@ Created on %(date)s
 """
 
 import pandas as pd
-#from plotnine import *
-#import statsmodels as sm
 import numpy as np
-from scipy.stats import norm
-from scipy.optimize import *
 from rust import OLS
+
 if __name__ == '__main__':
     from time import clock as clock
     start_time = clock()
@@ -24,7 +21,7 @@ if __name__ == '__main__':
     beta = 0.95
 
 #==============================================================================
-#     CCP as fx of x
+# CCP as fx of x
 #==============================================================================
     params = {}
     for t in range(1,101):
@@ -39,8 +36,14 @@ if __name__ == '__main__':
 #
     df2 = df.loc[df['t']!=100,:]
 
+#==============================================================================
+# RHS
+#==============================================================================
     X = np.vstack([df2['x'].values,-df2['rc'].values]).T
 
+#==============================================================================
+# LHS
+#==============================================================================
     Y = np.empty((1000,99))
     epsilon = 1e-8
     for ind,(i,t,a,x,rc) in df2.iterrows():
@@ -53,7 +56,11 @@ if __name__ == '__main__':
         Y[int(i)-1,int(t)-1] = np.log(p1)-np.log(1-p1)+beta*(np.log(p2)-np.log(p3))
     Y = Y.reshape(99000)
 
+#==============================================================================
+# OLS
+#==============================================================================
     res = OLS(Y,X,'no')
+
     end_time = clock()
     print("It took the program", int((end_time-start_time)//3600), "hour(s)", int(((end_time-start_time)//60)%60), "minute(s)",  '{:f}'.format(((end_time-start_time)%3600)%60),"seconds to run.")
 
