@@ -12,7 +12,6 @@ import numpy as np
 from scipy.stats import norm
 from scipy.special import logsumexp
 from scipy.optimize import *
-import timeit
 
 def OLS(y,x,se='hc1'):
     """se could be:
@@ -68,7 +67,7 @@ def valueFx(theta,tol=1e-12,):
             x_Ind = np.where(xGrid==x_)[0][0]
             u0 = -theta[0]*x_ + beta*EV[x_Ind,:,0]
             u1 = -theta[1]*rcGrid + beta*EV[x_Ind,:,1]
-            EV_[xInd,:,a] = np.logaddexp(u0,u1)@rcProb
+            EV_[xInd,:,a] = (np.logaddexp(u0,u1))@rcProb
         dist = (abs(EV-EV_)).max()
         if dist < tol:
 #            print('convergence',dist,)
@@ -91,6 +90,15 @@ if __name__ == '__main__':
     from time import clock as clock
     start_time = clock()
 
+    beta = 0.95
+    d = 0.5
+    gamma = np.euler_gamma
+    xEnum = list(enumerate(range(1,8)))
+    xGrid = np.array(range(1,8))
+    rcGrid = np.arange(10,95.1,d)
+    rcInd = {x:i for i,x in enumerate(rcGrid)}
+    l = len(rcGrid)
+
     df = pd.read_csv('ddc_pset.csv')
     df = df.sort_values(by=['i','t'])
     df[['a_lag1','rc_lag1']] = df.groupby(['i']).shift().loc[:,['a','rc']]
@@ -102,14 +110,6 @@ if __name__ == '__main__':
     y = df['rc'].values[1:100]
     res = OLS(y,x,'no')
     rho, sigma = res[0], res[-1]**0.5
-
-    beta = 0.95
-    d = 0.5
-    xEnum = list(enumerate(range(1,8)))
-    xGrid = np.array(range(1,8))
-    rcGrid = np.arange(10,95.1,d)
-    rcInd = {x:i for i,x in enumerate(rcGrid)}
-    l = len(rcGrid)
 
 #==============================================================================
 # Unsmoothing the AR(1) process into a matrix of transition probabilities
@@ -139,15 +139,18 @@ if __name__ == '__main__':
 
     res = {}
     guesses = [np.array((k,k))*0.2 for k in range(1,51)]
-    guesses += [np.random.normal(loc=5,scale=5,size=(2)) for _ in range(50)]
-    print(clock()-start_time,'setup complete')
+    np.random.seed(123)
+    randomTheta1 = [np.random.uniform(0,10) for _ in range(10)]
+    randomTheta2 = [np.random.uniform(0,5) for _ in range(10)]
+    guesses += list(zip(randomTheta1,randomTheta2))
 
+    print(clock()-start_time,'setup complete')
+    start_time = clock()
 #==============================================================================
 # Minimizing the log-likelihood for 50 initial guesses
 #==============================================================================
-    for initialGuess in guesses:
-        if (initialGuess > 0) == 2:
-            res[str(initialGuess)] = minimize(likelihood,initialGuess,bounds=((0,None),(0,None)),tol=1e-10,)
+    for initialGuess in guesses[:5]:
+            res[str(initialGuess)] = basinhopping(likelihood,initialGuess,)
 
     pd.DataFrame.from_dict(data=res, orient='index').to_csv('resRust.csv', header=False)
     end_time = clock()

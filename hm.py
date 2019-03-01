@@ -6,13 +6,10 @@ Created on %(date)s
 """
 
 import pandas as pd
-#from plotnine import *
-import statsmodels as sm
 import numpy as np
 from numpy import log, exp, logaddexp
 from scipy.stats import norm
 from scipy.optimize import *
-import timeit
 from rust import OLS
 
 def logPtilde(theta):
@@ -37,6 +34,16 @@ if __name__ == '__main__':
     from time import clock as clock
     start_time = clock()
 
+    beta = 0.95
+    d = 0.5
+    gamma = np.euler_gamma
+    xEnum = list(enumerate(range(1,8)))
+    xGrid = np.array(range(1,8))
+    rcGrid = np.arange(10,95.1,d)
+    rcEnum = list(enumerate(rcGrid))
+    rcInd = {x:i for i,x in rcEnum}
+    l = len(rcGrid)
+
     df = pd.read_csv('ddc_pset.csv')
     df = df.sort_values(by=['i','t'])
     df[['a_lag1','rc_lag1']] = df.groupby(['i']).shift().loc[:,['a','rc']]
@@ -48,16 +55,6 @@ if __name__ == '__main__':
     y = df['rc'].values[1:100]
     res = OLS(y,x,'no')
     rho, sigma = res[0], res[-1]**0.5
-
-    beta = 0.95
-    d = 0.5
-    gamma = np.euler_gamma
-    xEnum = list(enumerate(range(1,8)))
-    xGrid = np.array(range(1,8))
-    rcGrid = np.arange(20,75.1,d)
-    rcEnum = list(enumerate(rcGrid))
-    rcInd = {x:i for i,x in rcEnum}
-    l = len(rcGrid)
 
 #==============================================================================
 # Unsmoothing the AR(1) process into a matrix of transition probabilities
@@ -117,6 +114,9 @@ if __name__ == '__main__':
     blocks1 = [[1]+[0]*6 for xInd in range(7)]
     stateTrans[1] = np.kron(blocks1,rcProb)
 
+#==============================================================================
+# Inversion
+#==============================================================================
     psi = {}
     psi[0] = -np.log(1-longCCP) + gamma
 
@@ -125,28 +125,39 @@ if __name__ == '__main__':
     v0 = (beta*stateTrans[0]@V).reshape((7,l))
     v1 = (beta*stateTrans[1]@V).reshape((7,l))
 
+#==============================================================================
+# CCPs on the support
+#==============================================================================
     relevantXRC = ~np.isnan(obsCCP)
     relevantObsCCP = obsCCP[relevantXRC].flatten()
 
     XRC, countsXRC = np.unique(df.loc[:,['x','rc']].values,axis=0,return_counts=True)
     weights = countsXRC/countsXRC.sum()
 
+#==============================================================================
+# Setting up the minimization
+#==============================================================================
     res = {}
-    guesses = [np.array((2*k,k))*0.2 for k in range(1,30)]
+    guesses = [np.array((k,k))*0.2 for k in range(1,31)]
+
     np.random.seed(123)
     randomTheta1 = [np.random.uniform(0,10) for _ in range(10)]
     randomTheta2 = [np.random.uniform(0,5) for _ in range(10)]
     guesses += list(zip(randomTheta1,randomTheta2))
     print(clock()-start_time,'setup complete')
+    start_time=clock()
     weighted = 0
 #==============================================================================
-# Minimizing the log-likelihood for 50 initial guesses
+# Minimizing the log-likelihood for 40 initial guesses
 #==============================================================================
     for initialGuess in guesses:
         if weighted:
-            res[str(initialGuess)] = basinhopping(weightedDistance,initialGuess,)
+            res[str(initialGuess)] = minimize(weightedDistance,initialGuess,bounds=((0,None),(0,None)))
+#            res[str(initialGuess)] = basinhopping(weightedDistance,initialGuess,)
+
         else:
-            res[str(initialGuess)] = basinhopping(unweightedDistance,initialGuess,)
+            res[str(initialGuess)] = minimize(unweightedDistance,initialGuess,bounds=((0,None),(0,None)))
+#            res[str(initialGuess)] = basinhopping(unweightedDistance,initialGuess,)
 
     pd.DataFrame.from_dict(data=res, orient='index').to_csv('resHM'+'un'*(1-weighted)+'weighted.csv', header=True)
 

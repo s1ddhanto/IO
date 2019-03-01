@@ -45,7 +45,7 @@ if __name__ == '__main__':
 # LHS
 #==============================================================================
     Y = np.empty((1000,99))
-    epsilon = 1e-8
+    epsilon = 1e-4
     for ind,(i,t,a,x,rc) in df2.iterrows():
 
         xt1 = (x+1)%8
@@ -55,7 +55,8 @@ if __name__ == '__main__':
         p1,p2,p3 = np.clip([p1,p2,p3],epsilon,1-epsilon)
         Y[int(i)-1,int(t)-1] = np.log(p1)-np.log(1-p1)+beta*(np.log(p2)-np.log(p3))
     Y = Y.reshape(99000)
-
+    print(clock()-start_time)
+    start_time = clock()
 #==============================================================================
 # OLS
 #==============================================================================
